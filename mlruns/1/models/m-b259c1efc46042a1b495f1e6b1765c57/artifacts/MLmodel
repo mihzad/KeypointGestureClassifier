@@ -1,0 +1,23 @@
+artifact_path: file:///D:/programming/VS Code/Solutions/KeypointGestureClassifier/mlruns/1/models/m-b259c1efc46042a1b495f1e6b1765c57/artifacts
+flavors:
+  python_function:
+    config:
+      device: null
+    data: data
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pytorch
+    pickle_module_name: mlflow.pytorch.pickle_module
+    python_version: 3.11.15
+  pytorch:
+    code: null
+    model_data: data
+    pytorch_version: 2.10.0
+mlflow_version: 3.10.1
+model_id: m-b259c1efc46042a1b495f1e6b1765c57
+model_size_bytes: 452248
+model_uuid: m-b259c1efc46042a1b495f1e6b1765c57
+prompts: null
+run_id: 75eb9abb30064b068d102d97b0a2cd8d
+utc_time_created: '2026-04-09 15:45:56.968791'
