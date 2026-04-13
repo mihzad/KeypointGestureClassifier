@@ -37,6 +37,10 @@ def create_visual_transforms(img_size = 224):
     ])
     return train_transform, nontrain_transform
 
+
+def create_mp_transform():
+     return v2.Resize(size=(224,224))
+ #yup, just image. MP's HandLandmarker will handle the rest of the processing internally.
 #==============================
 #=== KEYPOINT AUGMENTATIONS ===
 #==============================

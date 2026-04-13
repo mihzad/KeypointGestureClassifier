@@ -23,8 +23,7 @@ class KeypointsDataset(Dataset):
         y: scalar label
 
     Options:
-        - return as (C,T) instead of (T,C)
-        - normalization
+        - additional keypoint per-sample transform.
     """
 
     def __init__(self, npz_path: Path, keypoint_transform: None | Callable = None):
@@ -52,28 +51,13 @@ class KeypointsDataset(Dataset):
 class VideoFramesFolderDataset(Dataset):
     '''
         per-frame video loader. the folder should have structure:
-        folder/class/v1 (each video in its own subfolder)/[collection of frames]
+        folder/class/v1 (each video in its own subfolder)/[collection of frames].
+        Returns list of PIL images for each video, and corresponding label.
         :parameter:
         :param root_dir: self-explanatory.
-        :param per_img_transform: (Default: None) - V2(!) transform, that will be applied to each frame of
-            the video. v2 is crucial for same transform per-frame.
-        :param production_ready: (Default: True) - if false, returns video as collection of frame tensors [T,C,H,W] instead of
-            stacking across temporal dim and creating training-ready [C,T,H,W] tensor. Useful for
-            further subset-specific transforms inside external wrappers.
     '''
-    def __init__(self, root_dir: Path, per_img_transform: v2.Transform = None, production_ready=True):
+    def __init__(self, root_dir: Path):
         self.root_dir = root_dir
-
-        if per_img_transform is None:
-            per_img_transform = v2.Compose([
-                v2.Resize(size=(224,224)),
-                v2.ToDtype(torch.float32, scale=True)
-                ])
-        if not isinstance(per_img_transform, v2.Transform):
-            raise TypeError("transform must be a torchvision.transforms.v2.Transform")
-        self.transform = per_img_transform
-
-        self.production_ready = production_ready
 
         # Map class names to indices
         self.classes = sorted([d.name for d in root_dir.iterdir() if d.is_dir()])
@@ -103,18 +87,10 @@ class VideoFramesFolderDataset(Dataset):
 
         for path in frame_paths:
             img = Image.open(path).convert('RGB')
-            frames.append(F.to_tensor(img))
+            frames.append(img)
 
-        tensorframes = tv_tensors.Image(torch.stack(frames))
-        if self.transform is not None:
-            tensorframes = self.transform(tensorframes)
 
-        if self.production_ready:
-            video = tensorframes.permute(1, 0, 2, 3)  # (T, C, H, W) => (C,T,H,W)
-        else:
-            video = tensorframes  # (T, C, H, W)
-
-        return video, label
+        return frames, label
 
 
 

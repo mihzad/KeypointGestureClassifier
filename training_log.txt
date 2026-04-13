@@ -5592,3 +5592,6 @@ validation done. precision: 76.026%; recall: 62.281%; accuracy: 62.549%
 
 
 [2026-04-11 15:13:42] training successfully finished.
+training preparation...
+====== MLflow ======
+An error occurred during training: 'experiment_name'

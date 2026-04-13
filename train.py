@@ -13,7 +13,7 @@ from torchinfo import summary
 from helpers.common import curr_time, printshare
 
 from model import create_model
-from augmentations import create_visual_transforms, create_keypoint_transforms
+from augmentations import create_visual_transforms, create_keypoint_transforms, create_mp_transform
 
 from helpers.data_loading import KeypointsDataset, VideoFramesFolderDataset, create_dataloaders
 from lr_scheduler import create_scheduler
@@ -22,7 +22,7 @@ from tester import perform_testing
 
 import shutil
 
-CHECKPOINT_RUN_ID: str | None = None
+EXPERIMENT_NAME = "Keypoint Gesture Classifier"
 IMG_SIZE = 224
 RAND_STATE = 44
 N_CLASSES = 33
@@ -36,20 +36,20 @@ DATA_IMAGES_DIR= Path("data_images")
 
 # Set up MLflow tracking URI and global exception hook for MLflow run management
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment(EXPERIMENT_NAME)
 
 def perform_training(model,
                      training_set:  KeypointsDataset,
                      validation_set: KeypointsDataset,
                      params: dict,
-                     pretrained: bool | Path = False):
+                     checkpoint_artifact_path: bool | Path = False,
+                     checkpoint_run_id: str | None = None):
     printshare("training preparation...")
 
-    mlflow.set_experiment(params["experiment_name"])
     run_obj = mlflow.start_run(run_name=params["run_name"])
     
     try:
         printshare("====== MLflow ======")
-        printshare(f"experiment name: {params['experiment_name']}")
         printshare(f"run name: {params['run_name']}")
         printshare(f"run id: {run_obj.info.run_id}")
         printshare("====================")
@@ -77,9 +77,9 @@ def perform_training(model,
         #========== loading checkpoint ==========
         epoch_began_with = 0
         model, optimizer, scheduler, epoch_began_with = load_checkpoint(
-            checkpoint_run_id=CHECKPOINT_RUN_ID,
+            checkpoint_run_id=checkpoint_run_id,
             model=model, optimizer=optimizer, scheduler=scheduler,
-            checkpoint_path=pretrained if isinstance(pretrained, str) else None,
+            checkpoint_path=checkpoint_artifact_path if isinstance(checkpoint_artifact_path, Path) else None,
             hyperparams_override={"optimizer_weight_decay": params["w_decay_begin"]}
         )
         curr_epoch = epoch_began_with
@@ -278,11 +278,7 @@ if __name__ == '__main__':
         }
     model = create_model(N_CLASSES, model_additional_config)
 
-    _, visual_nontrain_transform = create_visual_transforms(img_size=IMG_SIZE)
-
-
     training_setup={
-        "experiment_name": "Keypoint Gesture Classifier",
         "run_name": f"{type(model).__name__}_[{curr_time()}]",
 
         "keypoint_augmentations_config": {
@@ -319,22 +315,27 @@ if __name__ == '__main__':
             "eta_min": 1e-8
         }
     }
-    
+
+    _, visual_nontrain_transform = create_visual_transforms(img_size=IMG_SIZE)
     keypoint_train_transform, keypoint_nontrain_transform = create_keypoint_transforms(training_setup["keypoint_augmentations_config"])
 
     train_set = KeypointsDataset(DATA_DIR / "data_train.npz", keypoint_transform=keypoint_train_transform)
     val_set = KeypointsDataset(DATA_DIR / "data_validation.npz", keypoint_transform=keypoint_nontrain_transform)
-    test_set = VideoFramesFolderDataset(DATA_IMAGES_DIR / 'test', per_img_transform=visual_nontrain_transform, production_ready=True)
-
     
-
-    perform_training(model, train_set, val_set,
-                     params=training_setup,
-                     pretrained=False,
-                     )
-
-    #perform_testing(model, batch_size=8, testing_set=train_set,
-    #                weights_file=CHECKPOINTS_DIR / f'ep_161_p_94.3_r_93.5_a_93.9_model.pth')
-
+    training = False
+    if training:
+        perform_training(model, train_set, val_set,
+                        params=training_setup,
+                        checkpoint_artifact_path=False,
+                        checkpoint_run_id=None
+                        )
+    else: #testing
+        test_set = VideoFramesFolderDataset(DATA_IMAGES_DIR / 'test')
+        checkpoint_run_id = "7fd8524e5d0a4282b688ef6c49543d9a"
+        #before loading checkpoint, make sure the model architecture matches the one used for training that checkpoint.
+        checkpoint_mf_pth_path = "D:/programming/VS Code/Solutions/KeypointGestureClassifier/mlruns/1/7fd8524e5d0a4282b688ef6c49543d9a/artifacts/checkpoints/ep_40_p_76.0_r_62.3_a_62.5_model.pth"
+        checkpoint_mf_pth = torch.load(checkpoint_mf_pth_path, map_location='cpu')
+        model.load_state_dict(checkpoint_mf_pth['model'])
+        perform_testing(model, batch_size=8, testing_set=test_set)
 
 
