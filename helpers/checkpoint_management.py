@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 from helpers.mlflow_utils import prepare_confusion_matrix
 from helpers.common import printshare
-def load_checkpoint(checkpoint_run_id: str | None, model, optimizer, scheduler, checkpoint_path: None | Path, hyperparams_override):
+def load_checkpoint(checkpoint_run_id: str | None, model, optimizer, scheduler, checkpoint_path: str | None, hyperparams_override):
 
     epoch = 0
     if checkpoint_run_id is None:
@@ -14,7 +14,7 @@ def load_checkpoint(checkpoint_run_id: str | None, model, optimizer, scheduler, 
 
     local_path = mlflow.artifacts.download_artifacts(run_id=checkpoint_run_id, artifact_path=checkpoint_path)
     if local_path is None or checkpoint_path is None:
-        printshare("Incorrect checkpoint path/artifact not found.")
+        printshare("Checkpoint path/artifact not found.")
         return model, optimizer, scheduler, epoch
     
     printshare("Loading pretrained model, optimizer & scheduler state dicts...")

@@ -79,6 +79,16 @@ def rotate(x, angle_rad, in_place=False):
 
     return to_flat(pts)
 
+def mirror(x, in_place=False):
+    if in_place:
+        pts=to_points(x)  # directly modify input tensor without cloning
+    else:
+        pts = to_points(x).clone()
+    
+    pts[..., 0] = 1-pts[..., 0] # Mirror x-coordinates (assuming normalized [0,1], which works for mediapipe)
+
+    return to_flat(pts)
+
 def rand_stretch_aligned(x, scale_x, scale_y, in_place=False):
     if in_place:
         pts=to_points(x)  # directly modify input tensor without cloning
@@ -138,10 +148,14 @@ def train_transform(input: torch.Tensor, config: dict): #x is (T, 42) tensor of 
 
         scale_x = np.random.uniform(config["stretch_scale_x"][0], config["stretch_scale_x"][1])
         scale_y = np.random.uniform(config["stretch_scale_y"][0], config["stretch_scale_y"][1])
+        
+        do_mirror = np.random.rand() < config["mirror_p"]
 
         for i in range(x.shape[0]):
             x[i] = rotate(x[i], angle_rad, in_place=True)
             x[i] = rand_stretch_aligned(x[i], scale_x=scale_x, scale_y=scale_y, in_place=True)
+            if do_mirror:
+                x[i] = mirror(x[i], in_place=True)
         x = per_point_jitter(x, strength=config["jitter_strength"], in_place=True)
         return x
 

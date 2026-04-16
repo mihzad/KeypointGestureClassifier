@@ -41,9 +41,7 @@ mlflow.set_experiment(EXPERIMENT_NAME)
 def perform_training(model,
                      training_set:  KeypointsDataset,
                      validation_set: KeypointsDataset,
-                     params: dict,
-                     checkpoint_artifact_path: bool | Path = False,
-                     checkpoint_run_id: str | None = None):
+                     params: dict):
     printshare("training preparation...")
 
     run_obj = mlflow.start_run(run_name=params["run_name"])
@@ -52,6 +50,8 @@ def perform_training(model,
         printshare("====== MLflow ======")
         printshare(f"run name: {params['run_name']}")
         printshare(f"run id: {run_obj.info.run_id}")
+        printshare(f"checkpoint run id: {params['checkpoint_run_id']}")
+        printshare(f"checkpoint artifact path: {params['checkpoint_artifact_path']}")
         printshare("====================")
 
 
@@ -77,9 +77,9 @@ def perform_training(model,
         #========== loading checkpoint ==========
         epoch_began_with = 0
         model, optimizer, scheduler, epoch_began_with = load_checkpoint(
-            checkpoint_run_id=checkpoint_run_id,
+            checkpoint_run_id=params["checkpoint_run_id"],
             model=model, optimizer=optimizer, scheduler=scheduler,
-            checkpoint_path=checkpoint_artifact_path if isinstance(checkpoint_artifact_path, Path) else None,
+            checkpoint_path=params["checkpoint_artifact_path"],
             hyperparams_override={"optimizer_weight_decay": params["w_decay_begin"]}
         )
         curr_epoch = epoch_began_with
@@ -270,14 +270,15 @@ if __name__ == '__main__':
 
     model_additional_config = {
         "TE_stem_channels": 96,
-        "TE_inner_residuals_dim": 32,
-        "TE_between_residuals_dim": 96,
-        "features_per_encoder":96,
+        "TE_inner_residuals_dim": 64,
+        "TE_between_residuals_dim": 128,
+        "features_per_encoder":128,
         "classifier_hidden_dim": 256,
         "train_postnorm_jitter": 0.0
         }
     model = create_model(N_CLASSES, model_additional_config)
 
+    training = True
     training_setup={
         "run_name": f"{type(model).__name__}_[{curr_time()}]",
 
@@ -285,15 +286,16 @@ if __name__ == '__main__':
             "rotation_max_angle_deg": 15,
             "stretch_scale_x": (0.8, 1.2),
             "stretch_scale_y": (0.8, 1.2),
-            "jitter_strength": 0.04
+            "jitter_strength": 0.04,
+            "mirror_p": 0.5
         },
 
         "model_additional_config": model_additional_config,
 
-        "redirect_scaler_statistics_after_epoch": 15,
-        "redirect_scaler_statistics_every_n_epochs": 2,
+        "redirect_scaler_statistics_after_epoch": 1, #epoch since this (compensate for checkpoint) training began
+        "redirect_scaler_statistics_every_n_epochs": 1,
 
-        "epochs": 60,
+        "epochs": 90,
         "batch_size": 64,
         "lr": 1e-3,
 
@@ -307,33 +309,37 @@ if __name__ == '__main__':
          # sets upper bound (~=1+ln(1/eps)) on relative frequencies of classes oversampled
 
         "scheduler_params":{
-            "warmup_steps": 5,
-            "T_0": 6,
+            "warmup_steps": 4,
+            "T_0": 10,
             "T_mult": 1.2,
-            "decay_factor": 0.9,
+            "decay_factor": 0.8,
             "base_lr": 1e-3,
             "eta_min": 1e-8
-        }
-    }
+        },
 
+        #"checkpoint_run_id": None,
+        #"checkpoint_artifact_path": None
+
+        "checkpoint_run_id": "234ec2e4be304698a230627679e60cfc",  #run_id in mlflow to load checkpoint from (if so)
+        "checkpoint_artifact_path": "checkpoints/ep_64_p_97.1_r_96.6_a_96.7_model.pth" #Path to .pth file with checkpoint dict to load
+    }
     _, visual_nontrain_transform = create_visual_transforms(img_size=IMG_SIZE)
     keypoint_train_transform, keypoint_nontrain_transform = create_keypoint_transforms(training_setup["keypoint_augmentations_config"])
 
     train_set = KeypointsDataset(DATA_DIR / "data_train.npz", keypoint_transform=keypoint_train_transform)
     val_set = KeypointsDataset(DATA_DIR / "data_validation.npz", keypoint_transform=keypoint_nontrain_transform)
     
-    training = False
     if training:
-        perform_training(model, train_set, val_set,
-                        params=training_setup,
-                        checkpoint_artifact_path=False,
-                        checkpoint_run_id=None
-                        )
+        pass
+        #perform_training(model, train_set, val_set,
+        #                params=training_setup
+        #                )
     else: #testing
         test_set = VideoFramesFolderDataset(DATA_IMAGES_DIR / 'test')
-        checkpoint_run_id = "7fd8524e5d0a4282b688ef6c49543d9a"
+        checkpoint_run_id = "234ec2e4be304698a230627679e60cfc"
         #before loading checkpoint, make sure the model architecture matches the one used for training that checkpoint.
-        checkpoint_mf_pth_path = "D:/programming/VS Code/Solutions/KeypointGestureClassifier/mlruns/1/7fd8524e5d0a4282b688ef6c49543d9a/artifacts/checkpoints/ep_40_p_76.0_r_62.3_a_62.5_model.pth"
+        checkpoint_mf_pth_path = mlflow.artifacts.download_artifacts(run_id=checkpoint_run_id,
+            artifact_path="checkpoints/ep_64_p_97.1_r_96.6_a_96.7_model.pth")
         checkpoint_mf_pth = torch.load(checkpoint_mf_pth_path, map_location='cpu')
         model.load_state_dict(checkpoint_mf_pth['model'])
         perform_testing(model, batch_size=8, testing_set=test_set)

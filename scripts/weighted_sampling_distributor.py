@@ -18,7 +18,8 @@ def analyze_weaknesses_produce_weights(pth_path, eps=0.25):
     diagonals = np.diag(cm)
 
     # log-inverse weighting
-    raw_weights = np.log(1.0 / (diagonals + eps))
+    raw_weights = np.maximum( np.log(1.0 / (diagonals + eps)), np.zeros_like(diagonals) )
+                         
 
     # add +1 to avoid zero-weights for perfect classes
     raw_weights = raw_weights + 1.0

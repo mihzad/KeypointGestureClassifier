@@ -45,6 +45,8 @@ def perform_testing(GC, batch_size, testing_set):
     with torch.no_grad():
         correct = 0
         total = 0
+        mp_not_detected_count = 0
+        gc_not_detected_count = 0
         targets = []
         predictions = []
 
@@ -77,6 +79,7 @@ def perform_testing(GC, batch_size, testing_set):
                             continue
                     # If no hand detected or confidence is low - outputs for the vid will be None & video skipped.
                     outputs[batch_index] = NO_HAND_DETECTED_LABEL
+                    mp_not_detected_count += 1
                     break
                 if outputs[batch_index] == NO_HAND_DETECTED_LABEL:
                     total += 1
@@ -93,6 +96,7 @@ def perform_testing(GC, batch_size, testing_set):
                     correct += (outputs[batch_index] == labels[batch_index].item())
                 else:
                     outputs[batch_index] = NO_HAND_DETECTED_LABEL
+                    gc_not_detected_count += 1
                 total += 1
 
             
@@ -101,6 +105,9 @@ def perform_testing(GC, batch_size, testing_set):
             predictions.extend(outputs)
 
         print(f"Final accuracy: {correct/total:.4f} ({correct}/{total})")
+        print(f"MP not detected: {mp_not_detected_count}/{total-correct}")
+        print(f"GC not detected: {gc_not_detected_count}/{total-correct}")
+        print(f"GC misclassified: {total-correct-mp_not_detected_count-gc_not_detected_count}/{total-correct}")
 
         targets, predictions = np.array(targets), np.array(predictions)
         print(f"Targets: min = {np.min(targets)}, max = {np.max(targets)}")
